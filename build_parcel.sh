@@ -9,17 +9,25 @@ fi
 
 set -ex
 
+[[ -z $CM_EXT_BASE_DIR ]] && CM_EXT_BASE_DIR=.
+[[ ! -d $CM_EXT_BASE_DIR/cm_ext ]] && CM_EXT_BASE_DIR=..
+[[ ! -d $CM_EXT_BASE_DIR/cm_ext ]] && echo "set env CM_EXT_BASE_DIR!" && exit
+[[ ! -f $CM_EXT_BASE_DIR/cm_ext/validator/target/validator.jar ]] && echo "missing $CM_EXT_BASE_DIR/cm_ext/validator/target/validator.jar" && exit
+
 PARCEL_DIR=LIVY-$1
 PARCEL=$PARCEL_DIR-$2.parcel
 
 # Build Livy
-[ ! -d ./livy ] && git clone https://github.com/cloudera/livy.git
+if [ ! -d ./livy ]; then
+  git clone https://github.com/apache/incubator-livy
+  mv incubaror-livy livy
+  cd ./livy
+  git checkout -b tags/v0.4.0-incubating v0.4.0-incubating
+else
+  cd ./livy
+fi
 
-cd ./livy
-
-git checkout v0.2.0
-
-mvn -DskipTests -Dspark.version=1.6.0-cdh5.9.0 -Dhadoop-version=2.6.0-cdh5.9.0 clean package
+mvn clean package -DskipTests -Dspark.version=1.6.0-cdh5.11.2 -Dhadoop-version=2.6.0-cdh5.11.2 -pl '!core/scala-2.11,!repl/scala-2.11,!scala-api/scala-2.11,!integration-test/minicluster-dependencies/scala-2.11'
 
 # Prepare parcel
 cd ../
@@ -41,14 +49,14 @@ cp -r parcel-src/meta $PARCEL_DIR/
 sed -i -e "s/%VERSION%/$1/" ./$PARCEL_DIR/meta/*
 
 # Validate and build parcel
-java -jar ~/github/cloudera/cm_ext/validator/target/validator.jar -d ./$PARCEL_DIR
+java -jar $CM_EXT_BASE_DIR/cm_ext/validator/target/validator.jar -d ./$PARCEL_DIR
 
 tar zcvhf ./$PARCEL $PARCEL_DIR
 
-java -jar ~/github/cloudera/cm_ext/validator/target/validator.jar -f ./$PARCEL
+java -jar $CM_EXT_BASE_DIR/cm_ext/validator/target/validator.jar -f ./$PARCEL
 
 # Remove parcel working directory
 rm -rf ./$PARCEL_DIR
 
 # Create parcel manifest
-~/github/cloudera/cm_ext/make_manifest/make_manifest.py .
+$CM_EXT_BASE_DIR/cm_ext/make_manifest/make_manifest.py .
